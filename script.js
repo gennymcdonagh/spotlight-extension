@@ -1,51 +1,48 @@
-const apiUrlHtml = 'https://www.spotlightstores.com/rest/v1/product/';
-const apiUrlJson = 'https://www.spotlightstores.com/rest/v1/product/basic/';
+const apiUrl = 'https://www.spotlightstores.com/rest/v1/product/basic/';
 const itemData = {};
-const fetchBatchSize = 5;
-let controller = null;
-let delay = 5000;
+const batchSize = 5;
+let fetchAbortController = null;
+const delay = 5000;
 let timeout = null;
 
 function populateDropdown() {
-
   const items = [...document.getElementsByClassName('dropdown-item')];
   console.log('populating dropdown');
-  
   let fetchQueue = [];
   
+  // iterate over the contents of the dropdown
   items.forEach(i => {
     const id = i.dataset?.variantStyleCode;
-    const variant = i.title;
     if (id) {
-      if (itemData[id]) {
+      if (itemData[id]) { // if there's already cached data for this id
         Promise.resolve(itemData[id])
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
-      } else {
+      } else { // need to fetch this id's data
         fetchQueue.push(i);
       }
     }
   });
 
+  // fetch any items that were not already available in itemData
   if (fetchQueue.length) {
-    console.log('fetching queue');
     throttleFetch(fetchQueue);
   }
 }
 
 function throttleFetch(queue) {
-  let batch = queue.splice(0,fetchBatchSize);
+  // do the fetches one batch at a time
+  let batch = queue.splice(0,batchSize);
 
-  controller = new AbortController();
-  const { signal } = controller;
+  fetchAbortController = new AbortController();
+  const { signal } = fetchAbortController;
 
   const promises = batch.map(i => {
     const id = i.dataset?.variantStyleCode;
     const variant = i.title;
-    return fetch(apiUrlJson + id, { signal })
+    return fetch(apiUrl + id, { signal })
       .then(response => {
         if (response.status === 200) {
-          console.log(`fetched ${id}`);
           return response.json()
         }
         else {
@@ -57,34 +54,13 @@ function throttleFetch(queue) {
       .catch(error => console.log(error));
   })
 
-  if (queue.length) {
-    // wait a delay then fetch the next batch
-    Promise.all(promises).then(() => {
+  Promise.all(promises).then(() => {
+    console.log('fetched batch');
+    if (queue.length) {
+      // wait a delay then fetch the next batch
       timeout = setTimeout(() => throttleFetch(queue), delay);
-    });
-  }
-}
-
-function parseItemHtml(htmlString, productCode) {
-  const doc = new DOMParser().parseFromString(htmlString, "text/html");
-  const detailsElement = doc.getElementById('productDetailWrapper');
-  const stockElement = doc.querySelector('[itemprop=availability]');
-  const availableForDeliveryElement = doc.getElementsByClassName('isHomeDelivery')[0];
-  
-  const item = {
-    id: productCode,
-    url: doc.querySelector('[itemprop=url]').content,
-    details: detailsElement?.dataset,
-    inStock: stockElement?.href === "http://schema.org/InStock" ? true : false,
-    availableOnline: (availableForDeliveryElement.value === "true"),
-    variant: detailsElement.dataset.productVariant,
-    img: doc.getElementById('pdp-img-wrap').src,
-    price: detailsElement.dataset.productPrice,
-  };
-
-  itemData[productCode] = item;
-
-  return item;
+    }
+  });
 }
 
 function parseItemJson(json, productCode, variant) {
@@ -98,38 +74,13 @@ function parseItemJson(json, productCode, variant) {
     price: json.salePrice || json.regPrice,
   };
 
+  // save this data to itemData so we don't need to refetch it if the page content changes
   itemData[productCode] = item;
-
+  
   return item;
 }
 
-function createItemTile(item) {
-  const itemWrapper = document.createElement("a");
-  itemWrapper.setAttribute('id', item.id);    
-  itemWrapper.setAttribute('href', item.url);
-  
-  let stockMsg = null;
-  if (!item.availableOnline && item.inStock) {
-    stockMsg = 'Instore only';
-  } else if (!item.inStock) {
-    stockMsg = 'Out of stock';
-  }
-
-  itemWrapper.innerText = `${stockMsg || ('$' + item.price)}  ${item.variant}`;
-  itemWrapper.style.cssText = `
-    background-image: url('${item.img}');
-    width: 200px;
-    height: 200px;
-    background-size: contain;
-    color: white;
-    font-weight: bold;
-  `;
-
-  return itemWrapper;
-}
-
 function addItemDetailsToDropdown(item, i) {
-
   let stockMsg = null;
   if (!item.availableOnline && item.inStock) {
     stockMsg = 'Instore only';
@@ -146,16 +97,17 @@ function addItemDetailsToDropdown(item, i) {
     text-shadow: 1px 1px 7px #000;
     font-weight: bold;
   `;
-
 }
 
-
-
-populateDropdown();
-
-const observer = new MutationObserver(() => { 
-  controller.abort();
+const productContentObserver = new MutationObserver(() => { 
+  // cancel any pending fetches
+  fetchAbortController.abort();
   clearTimeout(timeout);
+  // dropdown element has been replaced, so need to repopulate it
   populateDropdown();
 });
-observer.observe(document.getElementById('productContentWrapper'), {childList: true});
+
+// when the productContentWrapper element is replaced (eg after selecting a variant from the dropdown), repopulate the dropdown
+productContentObserver.observe(document.getElementById('productContentWrapper'), {childList: true});
+
+populateDropdown();
