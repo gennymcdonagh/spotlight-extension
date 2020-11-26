@@ -2,13 +2,15 @@ const apiUrlHtml = 'https://www.spotlightstores.com/rest/v1/product/';
 const apiUrlJson = 'https://www.spotlightstores.com/rest/v1/product/basic/';
 const itemData = {};
 
-function fetchItems() {
+function populateDropdown() {
 
   const items = [...document.getElementsByClassName('dropdown-item')];
   console.log('populating dropdown');
   
+  
   const promises = items.map(i => {
-    const id = i?.dataset?.variantStyleCode;
+    const id = i.dataset?.variantStyleCode;
+    const variant = i.title;
     if (id) {
       if (itemData[id]) {
         return Promise.resolve(itemData[id])
@@ -26,7 +28,7 @@ function fetchItems() {
             throw new Error(`couldn't load product ${id}`);
           };
         })
-        .then(html => parseItemJson(html,id))
+        .then(html => parseItemJson(html, id, variant))
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
       }
@@ -56,13 +58,13 @@ function parseItemHtml(htmlString, productCode) {
   return item;
 }
 
-function parseItemJson(json, productCode) {
+function parseItemJson(json, productCode, variant) {
   const item = {
     id: productCode,
     url: json.url,
     inStock: json.stockStatus !=='OUTOFSTOCK' ? true : false,
     availableOnline: json.purchasable,
-    variant: json.name,
+    variant: variant || json.name,
     img: json.primaryImage.thumbnail,
     price: json.salePrice || json.regPrice,
   };
@@ -106,7 +108,7 @@ function addItemDetailsToDropdown(item, i) {
     stockMsg = 'Out of stock';
   }
 
-  i.innerText = `${stockMsg || ('$' + item.price)}  ${item.variant}`;
+  i.innerText = `${stockMsg || item.price} - ${item.variant}`;
   i.style.cssText = `
     background-image: url('${item.img}');
     height: 75px;
@@ -118,4 +120,7 @@ function addItemDetailsToDropdown(item, i) {
 
 }
 
-fetchItems();
+populateDropdown();
+
+const observer = new MutationObserver(populateDropdown);
+observer.observe(document.getElementById('productContentWrapper'), {childList: true});
