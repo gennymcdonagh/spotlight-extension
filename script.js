@@ -1,4 +1,5 @@
-const apiUrl = 'https://www.spotlightstores.com/rest/v1/product/';
+const apiUrlHtml = 'https://www.spotlightstores.com/rest/v1/product/';
+const apiUrlJson = 'https://www.spotlightstores.com/rest/v1/product/basic/';
 const itemData = {};
 
 function fetchItems() {
@@ -14,18 +15,18 @@ function fetchItems() {
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
       } else {
-        return fetch(apiUrl + id)
+        return fetch(apiUrlJson + id)
         .then(response => {
           if (response.status === 200) {
             console.log(`fetched ${id}`);
-            return response.text()
+            return response.json()
           }
           else {
             // todo show error, hide loading spinner
             throw new Error(`couldn't load product ${id}`);
           };
         })
-        .then(html => parseItemData(html,id))
+        .then(html => parseItemJson(html,id))
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
       }
@@ -33,7 +34,7 @@ function fetchItems() {
   });
 }
 
-function parseItemData(htmlString, productCode) {
+function parseItemHtml(htmlString, productCode) {
   const doc = new DOMParser().parseFromString(htmlString, "text/html");
   const detailsElement = doc.getElementById('productDetailWrapper');
   const stockElement = doc.querySelector('[itemprop=availability]');
@@ -48,6 +49,22 @@ function parseItemData(htmlString, productCode) {
     variant: detailsElement.dataset.productVariant,
     img: doc.getElementById('pdp-img-wrap').src,
     price: detailsElement.dataset.productPrice,
+  };
+
+  itemData[productCode] = item;
+
+  return item;
+}
+
+function parseItemJson(json, productCode) {
+  const item = {
+    id: productCode,
+    url: json.url,
+    inStock: json.stockStatus !=='OUTOFSTOCK' ? true : false,
+    availableOnline: json.purchasable,
+    variant: json.name,
+    img: json.primaryImage.thumbnail,
+    price: json.salePrice || json.regPrice,
   };
 
   itemData[productCode] = item;
@@ -81,7 +98,6 @@ function createItemTile(item) {
 }
 
 function addItemDetailsToDropdown(item, i) {
-  i.style.color = 'green';
 
   let stockMsg = null;
   if (!item.availableOnline && item.inStock) {
