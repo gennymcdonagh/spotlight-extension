@@ -1,39 +1,67 @@
 const apiUrlHtml = 'https://www.spotlightstores.com/rest/v1/product/';
 const apiUrlJson = 'https://www.spotlightstores.com/rest/v1/product/basic/';
 const itemData = {};
+const fetchBatchSize = 5;
+const fetchLimitSize = 10;
+let controller = null;
+
 
 function populateDropdown() {
 
   const items = [...document.getElementsByClassName('dropdown-item')];
   console.log('populating dropdown');
   
+  let fetchQueue = [];
   
-  const promises = items.map(i => {
+  items.forEach(i => {
     const id = i.dataset?.variantStyleCode;
     const variant = i.title;
     if (id) {
       if (itemData[id]) {
-        return Promise.resolve(itemData[id])
+        Promise.resolve(itemData[id])
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
       } else {
-        return fetch(apiUrlJson + id)
-        .then(response => {
-          if (response.status === 200) {
-            console.log(`fetched ${id}`);
-            return response.json()
-          }
-          else {
-            // todo show error, hide loading spinner
-            throw new Error(`couldn't load product ${id}`);
-          };
-        })
-        .then(html => parseItemJson(html, id, variant))
-        .then(item => addItemDetailsToDropdown(item, i))
-        .catch(error => console.log(error));
+        fetchQueue.push(i);
       }
     }
   });
+
+  if (fetchQueue.length) {
+    console.log('fetching queue');
+    fetchQueue.splice(fetchLimitSize, fetchQueue.length);
+    throttleFetch(fetchQueue);
+  }
+}
+
+function throttleFetch(queue) {
+  let batch = queue.splice(0,fetchBatchSize);
+
+  controller = new AbortController();
+  const { signal } = controller;
+
+  const promises = batch.map(i => {
+    const id = i.dataset?.variantStyleCode;
+    const variant = i.title;
+    return fetch(apiUrlJson + id, { signal })
+      .then(response => {
+        if (response.status === 200) {
+          console.log(`fetched ${id}`);
+          return response.json()
+        }
+        else {
+          // todo show error, hide loading spinner
+          throw new Error(`couldn't load product ${id}`);
+        };
+      })
+      .then(html => parseItemJson(html, id, variant))
+      .then(item => addItemDetailsToDropdown(item, i))
+      .catch(error => console.log(error));
+  })
+
+  if (queue.length) {
+    Promise.all(promises).then(() => throttleFetch(queue));
+  }
 }
 
 function parseItemHtml(htmlString, productCode) {
@@ -122,5 +150,8 @@ function addItemDetailsToDropdown(item, i) {
 
 populateDropdown();
 
-const observer = new MutationObserver(populateDropdown);
+const observer = new MutationObserver(() => { 
+  controller.abort();
+  populateDropdown();
+});
 observer.observe(document.getElementById('productContentWrapper'), {childList: true});
