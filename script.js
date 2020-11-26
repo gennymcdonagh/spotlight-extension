@@ -2,9 +2,9 @@ const apiUrlHtml = 'https://www.spotlightstores.com/rest/v1/product/';
 const apiUrlJson = 'https://www.spotlightstores.com/rest/v1/product/basic/';
 const itemData = {};
 const fetchBatchSize = 5;
-const fetchLimitSize = 10;
 let controller = null;
-
+let delay = 5000;
+let timeout = null;
 
 function populateDropdown() {
 
@@ -29,7 +29,6 @@ function populateDropdown() {
 
   if (fetchQueue.length) {
     console.log('fetching queue');
-    fetchQueue.splice(fetchLimitSize, fetchQueue.length);
     throttleFetch(fetchQueue);
   }
 }
@@ -50,7 +49,6 @@ function throttleFetch(queue) {
           return response.json()
         }
         else {
-          // todo show error, hide loading spinner
           throw new Error(`couldn't load product ${id}`);
         };
       })
@@ -60,7 +58,10 @@ function throttleFetch(queue) {
   })
 
   if (queue.length) {
-    Promise.all(promises).then(() => throttleFetch(queue));
+    // wait a delay then fetch the next batch
+    Promise.all(promises).then(() => {
+      timeout = setTimeout(() => throttleFetch(queue), delay);
+    });
   }
 }
 
@@ -148,10 +149,13 @@ function addItemDetailsToDropdown(item, i) {
 
 }
 
+
+
 populateDropdown();
 
 const observer = new MutationObserver(() => { 
   controller.abort();
+  clearTimeout(timeout);
   populateDropdown();
 });
 observer.observe(document.getElementById('productContentWrapper'), {childList: true});
