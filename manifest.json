@@ -1,0 +1,17 @@
+{
+  "name": "Spotty",
+  "version": "1.0",
+  "description": "UI enhancement for spotlightstores.com",
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.spotlightstores.com/*"],
+      "js": ["script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "manifest_version": 2
+}

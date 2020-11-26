@@ -76,7 +76,7 @@ function parseItemJson(json, productCode, variant) {
 
   // save this data to itemData so we don't need to refetch it if the page content changes
   itemData[productCode] = item;
-  
+
   return item;
 }
 
@@ -101,13 +101,20 @@ function addItemDetailsToDropdown(item, i) {
 
 const productContentObserver = new MutationObserver(() => { 
   // cancel any pending fetches
-  fetchAbortController.abort();
-  clearTimeout(timeout);
+  if (fetchAbortController) {
+    fetchAbortController.abort();
+    clearTimeout(timeout);
+  }
   // dropdown element has been replaced, so need to repopulate it
   populateDropdown();
 });
 
-// when the productContentWrapper element is replaced (eg after selecting a variant from the dropdown), repopulate the dropdown
-productContentObserver.observe(document.getElementById('productContentWrapper'), {childList: true});
 
-populateDropdown();
+function init() {
+  // when the productContentWrapper element is replaced (eg after selecting a variant from the dropdown), repopulate the dropdown
+  productContentObserver.observe(document.getElementById('productContentWrapper'), {childList: true});
+  populateDropdown();
+}
+
+console.log('spotlight script loaded');
+init();
