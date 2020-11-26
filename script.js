@@ -1,21 +1,23 @@
 const apiUrl = 'https://www.spotlightstores.com/rest/v1/product/';
+const itemData = {};
 
 function fetchItems() {
-  const imageWrapperElement = document.getElementsByClassName('product-hero-image')[0];
-  const extraImagesContainer = document.createElement("div");
-  extraImagesContainer.setAttribute('id', 'extra-images-container');     
-  extraImagesContainer.style.display = 'flex';
-  extraImagesContainer.style.flexWrap = 'wrap';
-  imageWrapperElement.appendChild(extraImagesContainer);
 
   const items = [...document.getElementsByClassName('dropdown-item')];
-  console.log('starting fetch');
+  console.log('populating dropdown');
+  
   const promises = items.map(i => {
     const id = i?.dataset?.variantStyleCode;
     if (id) {
-      return fetch(apiUrl + id)
+      if (itemData[id]) {
+        return Promise.resolve(itemData[id])
+        .then(item => addItemDetailsToDropdown(item, i))
+        .catch(error => console.log(error));
+      } else {
+        return fetch(apiUrl + id)
         .then(response => {
           if (response.status === 200) {
+            console.log(`fetched ${id}`);
             return response.text()
           }
           else {
@@ -26,6 +28,7 @@ function fetchItems() {
         .then(html => parseItemData(html,id))
         .then(item => addItemDetailsToDropdown(item, i))
         .catch(error => console.log(error));
+      }
     }
   });
 }
@@ -46,6 +49,8 @@ function parseItemData(htmlString, productCode) {
     img: doc.getElementById('pdp-img-wrap').src,
     price: detailsElement.dataset.productPrice,
   };
+
+  itemData[productCode] = item;
 
   return item;
 }
