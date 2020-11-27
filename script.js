@@ -7,7 +7,8 @@ let timeout = null;
 
 function populateDropdown() {
   const items = [...document.getElementsByClassName('dropdown-item')];
-  console.log('populating dropdown');
+  //console.log(items);
+  //console.log('populating dropdown');
   let fetchQueue = [];
   
   // iterate over the contents of the dropdown
@@ -26,13 +27,14 @@ function populateDropdown() {
 
   // fetch any items that were not already available in itemData
   if (fetchQueue.length) {
+    console.log('fetching data...');
     throttleFetch(fetchQueue);
   }
 }
 
 function throttleFetch(queue) {
   // do the fetches one batch at a time
-  let batch = queue.splice(0,batchSize);
+  const batch = queue.splice(0,batchSize);
 
   fetchAbortController = new AbortController();
   const { signal } = fetchAbortController;
@@ -55,10 +57,12 @@ function throttleFetch(queue) {
   })
 
   Promise.all(promises).then(() => {
-    console.log('fetched batch');
+    //console.log('fetched batch');
     if (queue.length) {
       // wait a delay then fetch the next batch
       timeout = setTimeout(() => throttleFetch(queue), delay);
+    } else {
+      console.log('finished fetching');
     }
   });
 }
@@ -111,10 +115,15 @@ const productContentObserver = new MutationObserver(() => {
 
 
 function init() {
-  // when the productContentWrapper element is replaced (eg after selecting a variant from the dropdown), repopulate the dropdown
-  productContentObserver.observe(document.getElementById('productContentWrapper'), {childList: true});
-  populateDropdown();
+  const contentWrapperElement = document.getElementById('productContentWrapper');
+  const styleDropdownElement = document.getElementsByClassName('style-variant')[0];
+
+  if (contentWrapperElement && styleDropdownElement) {
+    // when the productContentWrapper element is replaced (eg after selecting a variant from the dropdown), repopulate the dropdown
+    productContentObserver.observe(contentWrapperElement, {childList: true});
+    populateDropdown();
+  }
 }
 
-console.log('spotlight script loaded');
+//console.log('spotlight script loaded');
 init();
